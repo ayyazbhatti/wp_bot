@@ -15,9 +15,23 @@ class AdminPanel {
   constructor() {
     this.app = express();
     this.port = 3001;
-    this.dbService = new DatabaseService();
+    this.dbService = null; // Initialize lazily
     this.setupMiddleware();
     this.setupRoutes();
+  }
+
+  async initializeDatabase() {
+    if (!this.dbService) {
+      try {
+        this.dbService = new DatabaseService();
+        await this.dbService.initialize();
+        console.log('✅ Database service initialized successfully');
+      } catch (error) {
+        console.error('❌ Database initialization failed:', error.message);
+        return false;
+      }
+    }
+    return true;
   }
 
   setupMiddleware() {
@@ -62,6 +76,14 @@ class AdminPanel {
     // Protected API endpoints
     this.app.get('/api/users', requireAuth, async (req, res) => {
       try {
+        const dbInitialized = await this.initializeDatabase();
+        if (!dbInitialized) {
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Database connection failed' 
+          });
+        }
+
         const users = await this.dbService.getAllUsers();
         const formattedUsers = users.map(user => ({
           chatId: user.chatId.replace('@c.us', ''),
@@ -87,6 +109,14 @@ class AdminPanel {
 
     this.app.get('/api/stats', requireAuth, async (req, res) => {
       try {
+        const dbInitialized = await this.initializeDatabase();
+        if (!dbInitialized) {
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Database connection failed' 
+          });
+        }
+
         const stats = await this.dbService.getStats();
         res.json({
           success: true,
@@ -100,6 +130,14 @@ class AdminPanel {
 
     this.app.get('/api/users/state/:state', requireAuth, async (req, res) => {
       try {
+        const dbInitialized = await this.initializeDatabase();
+        if (!dbInitialized) {
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Database connection failed' 
+          });
+        }
+
         const state = req.params.state;
         const users = await this.dbService.getUsersByState(state);
         const formattedUsers = users.map(user => ({
@@ -127,6 +165,14 @@ class AdminPanel {
 
     this.app.get('/api/registrations/completed', requireAuth, async (req, res) => {
       try {
+        const dbInitialized = await this.initializeDatabase();
+        if (!dbInitialized) {
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Database connection failed' 
+          });
+        }
+
         const users = await this.dbService.getCompletedRegistrations();
         const formattedUsers = users.map(user => ({
           chatId: user.chatId.replace('@c.us', ''),
@@ -151,6 +197,14 @@ class AdminPanel {
 
     this.app.delete('/api/users/:chatId', requireAuth, async (req, res) => {
       try {
+        const dbInitialized = await this.initializeDatabase();
+        if (!dbInitialized) {
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Database connection failed' 
+          });
+        }
+
         const chatId = req.params.chatId;
         const success = await this.dbService.deleteUser(chatId);
         
@@ -168,6 +222,14 @@ class AdminPanel {
     // API endpoint to update user sessions (called from bot) - no auth required
     this.app.post('/api/update-session', async (req, res) => {
       try {
+        const dbInitialized = await this.initializeDatabase();
+        if (!dbInitialized) {
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Database connection failed' 
+          });
+        }
+
         const { chatId, sessionData } = req.body;
         if (chatId && sessionData) {
           await this.dbService.updateUserSession(chatId, sessionData);
