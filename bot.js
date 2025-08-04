@@ -82,37 +82,54 @@ class WhatsAppBot {
     console.log(`[BOT] Current session state: ${session.state}`);
     console.log(`[BOT] Session data:`, session.data);
 
-    // Handle support message
-    if (userInput === 'supporto') {
-      console.log(`[BOT] Support requested`);
-      await this.sendMessage(chatId, config.SUPPORT_MESSAGE);
-      return;
+    // Handle support/options message
+    if (userInput === 'supporto' || userInput === 'nuovo' || userInput === 'esci') {
+      console.log(`[BOT] Support/options requested: "${userInput}"`);
+      
+      if (userInput === 'nuovo') {
+        // Reset session and start new registration
+        session.state = STATES.WELCOME;
+        session.data = {};
+        console.log(`[BOT] Starting new registration`);
+        await this.handleWelcome(chatId, session);
+        return;
+      } else if (userInput === 'esci') {
+        // Send exit message
+        console.log(`[BOT] User chose to exit`);
+        await this.sendMessage(chatId, config.EXIT_MESSAGE);
+        return;
+      } else {
+        // Show options menu
+        console.log(`[BOT] Showing options menu`);
+        await this.sendMessage(chatId, config.SUPPORT_MESSAGE);
+        return;
+      }
     }
 
     // Handle conversation flow
     switch (session.state) {
       case STATES.WELCOME:
-        console.log(`[BOT] Handling welcome state`);
+        console.log(`[BOT] Handling WELCOME state`);
         await this.handleWelcome(chatId, session);
         break;
       
       case STATES.WAITING_FOR_YES:
-        console.log(`[BOT] Handling yes response`);
+        console.log(`[BOT] Handling WAITING_FOR_YES state`);
         await this.handleYesResponse(chatId, userInput, session);
         break;
       
       case STATES.WAITING_FOR_NAME:
-        console.log(`[BOT] Handling name input`);
+        console.log(`[BOT] Handling WAITING_FOR_NAME state`);
         await this.handleNameInput(chatId, message.body, session);
         break;
       
       case STATES.WAITING_FOR_EMAIL:
-        console.log(`[BOT] Handling email input`);
+        console.log(`[BOT] Handling WAITING_FOR_EMAIL state`);
         await this.handleEmailInput(chatId, message.body, session);
         break;
       
       case STATES.COMPLETED:
-        console.log(`[BOT] Handling completed state`);
+        console.log(`[BOT] Handling COMPLETED state`);
         await this.handleCompletedState(chatId, userInput, session);
         break;
     }
@@ -155,16 +172,12 @@ class WhatsAppBot {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       console.log(`[DEBUG] Email validation failed for: ${trimmedEmail}`);
-      await this.sendMessage(chatId, 'Per favore inserisci un indirizzo email valido (es. nome@dominio.com).');
+      await this.sendMessage(chatId, 'Per favor e inserisci un indirizzo email valido (es. nome@dominio.com).');
       return;
     }
 
     console.log(`[DEBUG] Email validation passed: ${trimmedEmail}`);
     session.data.email = trimmedEmail;
-    
-    // Show typing indicator
-    console.log(`[DEBUG] Showing typing indicator...`);
-    await this.client.sendStateTyping(chatId);
     
     // Call API to register user
     console.log(`[DEBUG] Calling API with: ${session.data.fullName}, ${trimmedEmail}`);
@@ -198,10 +211,25 @@ class WhatsAppBot {
   }
 
   async handleCompletedState(chatId, userInput, session) {
-    if (userInput === 'supporto') {
-      await this.sendMessage(chatId, config.SUPPORT_MESSAGE);
+    console.log(`🏁 User in completed state, input: "${userInput}"`);
+    if (userInput === 'supporto' || userInput === 'nuovo' || userInput === 'esci') {
+      if (userInput === 'nuovo') {
+        // Reset session and start new registration
+        session.state = STATES.WELCOME;
+        session.data = {};
+        console.log(`[BOT] Starting new registration from completed state`);
+        await this.handleWelcome(chatId, session);
+      } else if (userInput === 'esci') {
+        // Send exit message
+        console.log(`[BOT] User chose to exit from completed state`);
+        await this.sendMessage(chatId, config.EXIT_MESSAGE);
+      } else {
+        // Show options menu
+        console.log(`[BOT] Showing options menu from completed state`);
+        await this.sendMessage(chatId, config.SUPPORT_MESSAGE);
+      }
     } else {
-      await this.sendMessage(chatId, 'Il tuo account è già stato creato. Se hai bisogno di aiuto, scrivi "supporto".');
+      await this.sendMessage(chatId, config.SUPPORT_MESSAGE);
     }
   }
 
@@ -241,14 +269,14 @@ class WhatsAppBot {
       };
 
       await this.client.sendMessage(chatId, buttonMessage);
-      
-      // Also send the URL as a simple message for compatibility
-      await this.sendMessage(chatId, `🔗 Link di accesso: ${loginUrl}`);
-      
+
+      // Also send the URL as a simple message for compatibility with clear one-time warning
+      await this.sendMessage(chatId, `⚠️ IMPORTANTE: Questo è un link di accesso per uso unico!\n\n🔗 Link di accesso: ${loginUrl}\n\n⚠️ Il link funziona solo una volta. Non condividerlo con altri.`);
+
     } catch (error) {
       console.error('Error sending login button:', error);
-      // Fallback to simple URL message
-      await this.sendMessage(chatId, `🔗 Accedi al Trading Platform: ${loginUrl}`);
+      // Fallback to simple URL message with clear one-time warning
+      await this.sendMessage(chatId, `⚠️ IMPORTANTE: Questo è un link di accesso per uso unico!\n\n🔗 Accedi al Trading Platform: ${loginUrl}\n\n⚠️ Il link funziona solo una volta. Non condividerlo con altri.`);
     }
   }
 
