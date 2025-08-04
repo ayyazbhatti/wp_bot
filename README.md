@@ -118,7 +118,7 @@ DB_PASSWORD=your_password_here
 NODE_ENV=development
 
 # API Configuration
-API_BASE_URL=https://v2.dtrader.tech/api/quick-register
+API_BASE_URL=https://backoffice.comgestfx.com/api/quick-register
 ```
 
 ### Database Setup

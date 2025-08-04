@@ -1,5 +1,5 @@
 module.exports = {
-  API_BASE_URL: 'https://v2.dtrader.tech/api/quick-register',
+  API_BASE_URL: 'https://backoffice.comgestfx.com/api/quick-register',
   BOT_NAME: 'Trading Bot',
   SUPPORT_MESSAGE: 'Crea nuovo account o esci?\n\nRispondi:\n• "nuovo" - per creare un nuovo account\n• "esci" - per uscire',
   WELCOME_MESSAGE: 'Ciao 👋 Benvenuto nel servizio di trading con bot automatico. Alla registrazione ottieni 20€ di bonus e il bot si attiva subito. Vuoi registrarti ora? Rispondi "Sì".',
