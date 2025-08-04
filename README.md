@@ -1,114 +1,205 @@
 # WhatsApp Trading Bot
 
-A WhatsApp bot for automatic trading service registration that collects user information and integrates with the trading platform API.
+A WhatsApp bot for collecting user information and registering users with a trading platform API.
 
 ## Features
 
-- 🤖 Automated conversation flow in Italian
-- 📝 Collects user name and email
-- 🔗 Integrates with trading platform API
-- 🎁 Offers €20 bonus on registration
-- 🔐 One-time login button with auto-login URL
-- 💬 Support system with "supporto" command
+- 🤖 **WhatsApp Integration** - Uses whatsapp-web.js for WhatsApp Web API
+- 📝 **User Registration** - Collects full name and email from users
+- 🔗 **API Integration** - Registers users with external trading platform
+- 🔐 **One-time Login Links** - Provides secure one-time access links
+- 📊 **Admin Panel** - Real-time monitoring of user interactions
+- 🔄 **Session Management** - Tracks user conversation states
+- 🌐 **Modern Web Interface** - Beautiful admin dashboard
 
-## Conversation Flow
+## Admin Panel Features
 
-1. **Welcome**: Greets user and offers €20 bonus
-2. **Confirmation**: User responds "Sì" to continue
-3. **Name Collection**: Collects full name
-4. **Email Collection**: Collects email address
-5. **Registration**: Calls API to create account
-6. **Login**: Provides one-time login button
+- 📈 **Real-time Statistics** - Total users, completed registrations, pending users
+- 📋 **User Data Table** - Complete user information with status tracking
+- 🔄 **Auto-refresh** - Updates every 30 seconds automatically
+- 📱 **Responsive Design** - Works on desktop and mobile devices
+- 🎨 **Modern UI** - Beautiful gradient design with smooth animations
 
-## API Integration
+## Quick Start
 
-The bot integrates with the trading platform API:
-- **Endpoint**: `https://v2.dtrader.tech/api/quick-register`
-- **Method**: POST
-- **Headers**: Content-Type: application/json, Accept: application/json
-- **Payload**: `{ "full_name": "John Doe", "email": "john@example.com" }`
+### Prerequisites
 
-## Installation
+- Node.js (version 16 or higher)
+- npm or yarn
+- WhatsApp account for the bot
 
-1. **Clone the repository**:
+### Installation
+
+1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/ayyazbhatti/wp_bot.git
    cd wp_bot
    ```
 
-2. **Install dependencies**:
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-3. **Start the bot**:
+3. **Start the bot and admin panel:**
    ```bash
-   npm start
+   ./start-admin.sh
    ```
+
+4. **Access the admin panel:**
+   - Open your browser and go to: `http://localhost:3001`
+   - The admin panel will show real-time user data
 
 ## Usage
 
-1. **Start the bot**:
-   ```bash
-   npm start
-   ```
+### Starting the Bot
 
-2. **Scan QR Code**: When the bot starts, it will display a QR code in the terminal. Scan this with your WhatsApp mobile app.
-
-3. **Bot is ready**: Once connected, the bot will automatically respond to messages.
-
-## Development
-
-For development with auto-restart:
 ```bash
-npm run dev
+# Start both bot and admin panel
+npm start
+
+# Or use the convenience script
+./start-admin.sh
 ```
+
+### Admin Panel Access
+
+Once the bot is running, access the admin panel at:
+- **URL:** `http://localhost:3001`
+- **Features:**
+  - View all user interactions
+  - Monitor registration status
+  - Track user data in real-time
+  - Auto-refresh every 30 seconds
+
+### WhatsApp Bot Flow
+
+1. **Welcome Message** - Bot greets user and asks if they want to register
+2. **Name Collection** - User provides full name
+3. **Email Collection** - User provides email address
+4. **API Registration** - Bot calls external API to register user
+5. **Success Message** - Confirmation with one-time login link
+6. **Options Menu** - User can create new account or exit
 
 ## Configuration
 
-Edit `config.js` to customize:
-- API endpoints
-- Bot messages
-- Support contact information
+### Bot Messages (config.js)
 
-## Dependencies
+```javascript
+module.exports = {
+  API_BASE_URL: 'https://v2.dtrader.tech/api/quick-register',
+  WELCOME_MESSAGE: 'Ciao 👋 Benvenuto nel servizio di trading...',
+  SUPPORT_MESSAGE: 'Crea nuovo account o esci?...',
+  EXIT_MESSAGE: 'Grazie per aver utilizzato il nostro servizio! 👋'
+};
+```
 
-- `whatsapp-web.js`: WhatsApp Web API client
-- `qrcode-terminal`: QR code display in terminal
-- `axios`: HTTP client for API calls
-- `dotenv`: Environment variable management
+### Admin Panel Port
+
+The admin panel runs on port 3001 by default. You can change this in `admin-panel.js`:
+
+```javascript
+this.port = 3001; // Change this to your preferred port
+```
 
 ## File Structure
 
 ```
 wp_bot/
-├── bot.js          # Main bot logic
-├── api.js          # API service module
-├── config.js       # Configuration settings
-├── package.json    # Dependencies and scripts
-└── README.md       # This file
+├── bot.js                 # Main WhatsApp bot logic
+├── api.js                 # API service for user registration
+├── config.js              # Configuration and messages
+├── admin-panel.js         # Admin panel server
+├── package.json           # Dependencies and scripts
+├── start-admin.sh         # Convenience start script
+├── public/
+│   └── admin.html        # Admin panel web interface
+├── README.md             # This file
+├── CONVERSATION_EXAMPLE.md
+├── SETUP_GUIDE.md
+└── example-config.js
 ```
 
-## API Response Handling
+## API Integration
 
-The bot handles various API responses:
-- ✅ **Success**: Account created, login URL provided
-- ❌ **400**: Invalid email format
-- ❌ **409**: Email already exists
-- ❌ **500**: Service unavailable
+The bot integrates with the trading platform API:
 
-## Security Features
+- **Endpoint:** `https://v2.dtrader.tech/api/quick-register`
+- **Method:** POST
+- **Payload:** `{ full_name, email }`
+- **Response:** `{ success, auto_login_url, password }`
 
-- Email validation
-- Input sanitization
-- Error handling
-- Session management
-- One-time login URLs
+## Admin Panel Data
+
+The admin panel displays:
+
+- **Phone Number** - User's WhatsApp number
+- **Full Name** - User's provided name
+- **Email** - User's email address
+- **Status** - Registration completion status
+- **Last Activity** - Timestamp of last interaction
+- **Login URL** - Availability of one-time login link
+
+## Conversation States
+
+The bot manages these conversation states:
+
+- `WELCOME` - Initial greeting
+- `WAITING_FOR_YES` - Waiting for user confirmation
+- `WAITING_FOR_NAME` - Collecting user's name
+- `WAITING_FOR_EMAIL` - Collecting user's email
+- `COMPLETED` - Registration finished
+
+## Commands
+
+Users can interact with the bot using these commands:
+
+- `"si"` - Confirm registration
+- `"nuovo"` - Start new registration
+- `"esci"` - Exit the bot
+- `"supporto"` - Show options menu
+
+## Troubleshooting
+
+### Common Issues
+
+1. **QR Code not appearing:**
+   - Check internet connection
+   - Restart the bot
+
+2. **Admin panel not loading:**
+   - Ensure bot is running
+   - Check if port 3001 is available
+   - Try accessing `http://localhost:3001/health`
+
+3. **API registration failing:**
+   - Check API endpoint availability
+   - Verify network connectivity
+   - Check console logs for errors
+
+### Debug Mode
+
+For detailed logging, check the console output when running the bot. All interactions are logged with timestamps.
+
+## Security
+
+- ✅ **One-time login links** - Links expire after use
+- ✅ **Input validation** - Email format validation
+- ✅ **Session management** - Secure user session tracking
+- ✅ **Error handling** - Graceful error management
 
 ## Support
 
-For support, users can type "supporto" at any time during the conversation.
+For issues or questions:
+1. Check the console logs for error messages
+2. Verify all dependencies are installed
+3. Ensure WhatsApp Web is accessible
+4. Check API endpoint availability
 
 ## License
 
-MIT License 
+MIT License - see LICENSE file for details.
+
+---
+
+**Note:** This bot requires a WhatsApp account and QR code authentication to function. The admin panel provides real-time monitoring of all user interactions. 

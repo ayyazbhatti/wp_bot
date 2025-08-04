@@ -2,14 +2,16 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const ApiService = require('./api');
 const config = require('./config');
+const AdminPanel = require('./admin-panel');
+const DatabaseService = require('./database/service');
 
-// Initialize API service
-const apiService = new ApiService();
+// Initialize admin panel
+const adminPanel = new AdminPanel();
 
-// User session storage
-const userSessions = new Map();
+// Initialize database service
+const dbService = new DatabaseService();
 
-// Bot states
+// Conversation states
 const STATES = {
   WELCOME: 'welcome',
   WAITING_FOR_YES: 'waiting_for_yes',
@@ -27,37 +29,33 @@ class WhatsAppBot {
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       }
     });
-
+    
+    this.apiService = new ApiService();
     this.setupEventHandlers();
   }
 
   setupEventHandlers() {
-    // QR Code generation
     this.client.on('qr', (qr) => {
       console.log('QR RECEIVED', qr);
       qrcode.generate(qr, { small: true });
     });
 
-    // Ready event
     this.client.on('ready', () => {
       console.log('Client is ready!');
     });
 
-    // Message handling
     this.client.on('message', async (message) => {
-      if (message.from === 'status@broadcast') return; // Ignore status messages
+      if (message.from === 'status@broadcast') return;
       
-      await this.handleMessage(message);
+      try {
+        await this.handleMessage(message);
+      } catch (error) {
+        console.error('Error handling message:', error);
+      }
     });
 
-    // Authentication failure
-    this.client.on('auth_failure', (msg) => {
-      console.error('Authentication failed:', msg);
-    });
-
-    // Disconnected
     this.client.on('disconnected', (reason) => {
-      console.log('Client was disconnected:', reason);
+      console.log('Client was disconnected', reason);
     });
   }
 
@@ -68,19 +66,32 @@ class WhatsAppBot {
     console.log(`[BOT] Received message from ${chatId}: "${message.body}"`);
     console.log(`[BOT] User input (lowercase): "${userInput}"`);
     
-    // Get or create user session
-    let session = userSessions.get(chatId);
-    if (!session) {
-      session = {
-        state: STATES.WELCOME,
-        data: {}
-      };
-      userSessions.set(chatId, session);
-      console.log(`[BOT] Created new session for ${chatId}`);
+    // Get or create user session from database
+    let user = await dbService.getUserSession(chatId);
+    if (!user) {
+      // Get user's WhatsApp profile name
+      let whatsappName = null;
+      try {
+        const contact = await this.client.getContactById(chatId);
+        if (contact && contact.pushname) {
+          whatsappName = contact.pushname;
+          console.log(`[BOT] WhatsApp profile name: ${contact.pushname}`);
+        }
+      } catch (error) {
+        console.log(`[BOT] Could not get WhatsApp profile name: ${error.message}`);
+      }
+      
+      user = await dbService.createUserSession(chatId, whatsappName);
+      console.log(`[BOT] Created new database session for ${chatId}`);
     }
     
-    console.log(`[BOT] Current session state: ${session.state}`);
-    console.log(`[BOT] Session data:`, session.data);
+    console.log(`[BOT] Current user state: ${user.currentState}`);
+    console.log(`[BOT] User data:`, {
+      whatsappName: user.whatsappName,
+      fullName: user.fullName,
+      email: user.email,
+      registrationComplete: user.registrationComplete
+    });
 
     // Handle support/options message
     if (userInput === 'supporto' || userInput === 'nuovo' || userInput === 'esci') {
@@ -88,10 +99,15 @@ class WhatsAppBot {
       
       if (userInput === 'nuovo') {
         // Reset session and start new registration
-        session.state = STATES.WELCOME;
-        session.data = {};
+        await dbService.updateUserSession(chatId, {
+          currentState: STATES.WELCOME,
+          fullName: null,
+          email: null,
+          registrationComplete: false,
+          autoLoginUrl: null
+        });
         console.log(`[BOT] Starting new registration`);
-        await this.handleWelcome(chatId, session);
+        await this.handleWelcome(chatId);
         return;
       } else if (userInput === 'esci') {
         // Send exit message
@@ -107,49 +123,49 @@ class WhatsAppBot {
     }
 
     // Handle conversation flow
-    switch (session.state) {
+    switch (user.currentState) {
       case STATES.WELCOME:
         console.log(`[BOT] Handling WELCOME state`);
-        await this.handleWelcome(chatId, session);
+        await this.handleWelcome(chatId);
         break;
       
       case STATES.WAITING_FOR_YES:
         console.log(`[BOT] Handling WAITING_FOR_YES state`);
-        await this.handleYesResponse(chatId, userInput, session);
+        await this.handleYesResponse(chatId, userInput);
         break;
       
       case STATES.WAITING_FOR_NAME:
         console.log(`[BOT] Handling WAITING_FOR_NAME state`);
-        await this.handleNameInput(chatId, message.body, session);
+        await this.handleNameInput(chatId, message.body);
         break;
       
       case STATES.WAITING_FOR_EMAIL:
         console.log(`[BOT] Handling WAITING_FOR_EMAIL state`);
-        await this.handleEmailInput(chatId, message.body, session);
+        await this.handleEmailInput(chatId, message.body);
         break;
       
       case STATES.COMPLETED:
         console.log(`[BOT] Handling COMPLETED state`);
-        await this.handleCompletedState(chatId, userInput, session);
+        await this.handleCompletedState(chatId, userInput);
         break;
     }
   }
 
-  async handleWelcome(chatId, session) {
+  async handleWelcome(chatId) {
     await this.sendMessage(chatId, config.WELCOME_MESSAGE);
-    session.state = STATES.WAITING_FOR_YES;
+    await dbService.updateUserState(chatId, STATES.WAITING_FOR_YES);
   }
 
-  async handleYesResponse(chatId, userInput, session) {
+  async handleYesResponse(chatId, userInput) {
     if (userInput === 'sì' || userInput === 'si' || userInput === 'yes') {
       await this.sendMessage(chatId, config.NAME_REQUEST);
-      session.state = STATES.WAITING_FOR_NAME;
+      await dbService.updateUserState(chatId, STATES.WAITING_FOR_NAME);
     } else {
       await this.sendMessage(chatId, 'Per favore rispondi "Sì" per continuare con la registrazione.');
     }
   }
 
-  async handleNameInput(chatId, name, session) {
+  async handleNameInput(chatId, name) {
     const trimmedName = name.trim();
     
     if (trimmedName.length < 2) {
@@ -157,35 +173,48 @@ class WhatsAppBot {
       return;
     }
 
-    session.data.fullName = trimmedName;
+    await dbService.updateUserData(chatId, { fullName: trimmedName });
     await this.sendMessage(chatId, config.EMAIL_REQUEST);
-    session.state = STATES.WAITING_FOR_EMAIL;
+    await dbService.updateUserState(chatId, STATES.WAITING_FOR_EMAIL);
   }
 
-  async handleEmailInput(chatId, email, session) {
+  async handleEmailInput(chatId, email) {
     const trimmedEmail = email.trim();
     
     console.log(`[DEBUG] Email input received: ${trimmedEmail}`);
-    console.log(`[DEBUG] Session data:`, session.data);
     
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       console.log(`[DEBUG] Email validation failed for: ${trimmedEmail}`);
-      await this.sendMessage(chatId, 'Per favor e inserisci un indirizzo email valido (es. nome@dominio.com).');
+      await this.sendMessage(chatId, 'Per favore inserisci un indirizzo email valido (es. nome@dominio.com).');
       return;
     }
 
     console.log(`[DEBUG] Email validation passed: ${trimmedEmail}`);
-    session.data.email = trimmedEmail;
+    
+    // Get current user data
+    const user = await dbService.getUserSession(chatId);
+    if (!user) {
+      console.log(`[DEBUG] User not found in database`);
+      await this.sendMessage(chatId, 'Errore: sessione utente non trovata. Inizia di nuovo con "nuovo".');
+      return;
+    }
     
     // Call API to register user
-    console.log(`[DEBUG] Calling API with: ${session.data.fullName}, ${trimmedEmail}`);
-    const result = await apiService.registerUser(session.data.fullName, trimmedEmail);
+    console.log(`[DEBUG] Calling API with: ${user.fullName}, ${trimmedEmail}`);
+    const result = await this.apiService.registerUser(user.fullName, trimmedEmail);
     
     console.log(`[DEBUG] API result:`, result);
     
     if (result.success) {
+      // Update user data with email and registration completion
+      await dbService.updateUserData(chatId, {
+        email: trimmedEmail,
+        registrationComplete: true,
+        autoLoginUrl: result.data.auto_login_url
+      });
+      
       // Send success message
       console.log(`[DEBUG] Sending success message...`);
       await this.sendMessage(chatId, result.message);
@@ -198,27 +227,29 @@ class WhatsAppBot {
         console.log(`[DEBUG] No auto_login_url found in response`);
       }
       
-      session.state = STATES.COMPLETED;
-      session.data.registrationComplete = true;
-      session.data.autoLoginUrl = result.data.auto_login_url;
+      await dbService.updateUserState(chatId, STATES.COMPLETED);
       console.log(`[DEBUG] Registration completed successfully`);
     } else {
       console.log(`[DEBUG] API call failed: ${result.message}`);
       await this.sendMessage(chatId, result.message);
-      // Reset to email input state
-      session.state = STATES.WAITING_FOR_EMAIL;
+      // Stay in email input state
     }
   }
 
-  async handleCompletedState(chatId, userInput, session) {
+  async handleCompletedState(chatId, userInput) {
     console.log(`🏁 User in completed state, input: "${userInput}"`);
     if (userInput === 'supporto' || userInput === 'nuovo' || userInput === 'esci') {
       if (userInput === 'nuovo') {
         // Reset session and start new registration
-        session.state = STATES.WELCOME;
-        session.data = {};
+        await dbService.updateUserSession(chatId, {
+          currentState: STATES.WELCOME,
+          fullName: null,
+          email: null,
+          registrationComplete: false,
+          autoLoginUrl: null
+        });
         console.log(`[BOT] Starting new registration from completed state`);
-        await this.handleWelcome(chatId, session);
+        await this.handleWelcome(chatId);
       } else if (userInput === 'esci') {
         // Send exit message
         console.log(`[BOT] User chose to exit from completed state`);
@@ -282,8 +313,18 @@ class WhatsAppBot {
 
   async start() {
     try {
+      // Initialize database first
+      console.log('🔌 Initializing database connection...');
+      await dbService.initialize();
+      
+      // Start WhatsApp client
+      console.log('📱 Starting WhatsApp client...');
       await this.client.initialize();
       console.log('WhatsApp Bot started successfully!');
+      
+      // Start admin panel
+      adminPanel.start();
+      
     } catch (error) {
       console.error('Failed to start WhatsApp Bot:', error);
     }
@@ -295,6 +336,24 @@ class WhatsAppBot {
       console.log('WhatsApp Bot stopped.');
     } catch (error) {
       console.error('Error stopping WhatsApp Bot:', error);
+    }
+  }
+
+  // Update admin panel with user session
+  async updateAdminPanel(chatId, session) {
+    try {
+      await fetch('http://localhost:3001/api/update-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chatId: chatId,
+          sessionData: session
+        })
+      });
+    } catch (error) {
+      console.error('Error updating admin panel:', error);
     }
   }
 }
