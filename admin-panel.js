@@ -1,22 +1,66 @@
 const express = require('express');
+const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const DatabaseService = require('./database/service');
+const { 
+    requireAuth, 
+    handleLogin, 
+    handleLogout, 
+    checkAuth, 
+    SESSION_CONFIG 
+} = require('./auth-middleware');
 
 class AdminPanel {
   constructor() {
     this.app = express();
     this.port = 3001;
     this.dbService = new DatabaseService();
+    this.setupMiddleware();
     this.setupRoutes();
   }
 
-  setupRoutes() {
+  setupMiddleware() {
+    // Session middleware
+    this.app.use(session(SESSION_CONFIG));
+    
+    // Body parsing middleware
     this.app.use(express.json());
+    this.app.use(express.urlencoded({ extended: true }));
+    
+    // Static files
     this.app.use(express.static('public'));
+  }
 
-    // API endpoint to get all user data
-    this.app.get('/api/users', async (req, res) => {
+  setupRoutes() {
+    // Authentication routes (no auth required)
+    this.app.get('/login', (req, res) => {
+      if (req.session && req.session.isAuthenticated) {
+        return res.redirect('/admin');
+      }
+      res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    });
+
+    this.app.post('/api/auth/login', handleLogin);
+    this.app.post('/api/auth/logout', handleLogout);
+    this.app.get('/api/auth/check', checkAuth);
+
+    // Protected admin panel route
+    this.app.get('/admin', requireAuth, (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+    });
+
+    // Redirect root to admin panel
+    this.app.get('/', (req, res) => {
+      if (req.session && req.session.isAuthenticated) {
+        res.redirect('/admin');
+      } else {
+        res.redirect('/login');
+      }
+    });
+
+    // Protected API endpoints
+    this.app.get('/api/users', requireAuth, async (req, res) => {
       try {
         const users = await this.dbService.getAllUsers();
         const formattedUsers = users.map(user => ({
@@ -41,8 +85,7 @@ class AdminPanel {
       }
     });
 
-    // API endpoint to get statistics
-    this.app.get('/api/stats', async (req, res) => {
+    this.app.get('/api/stats', requireAuth, async (req, res) => {
       try {
         const stats = await this.dbService.getStats();
         res.json({
@@ -55,8 +98,7 @@ class AdminPanel {
       }
     });
 
-    // API endpoint to get users by state
-    this.app.get('/api/users/state/:state', async (req, res) => {
+    this.app.get('/api/users/state/:state', requireAuth, async (req, res) => {
       try {
         const state = req.params.state;
         const users = await this.dbService.getUsersByState(state);
@@ -83,8 +125,7 @@ class AdminPanel {
       }
     });
 
-    // API endpoint to get completed registrations
-    this.app.get('/api/registrations/completed', async (req, res) => {
+    this.app.get('/api/registrations/completed', requireAuth, async (req, res) => {
       try {
         const users = await this.dbService.getCompletedRegistrations();
         const formattedUsers = users.map(user => ({
@@ -108,8 +149,7 @@ class AdminPanel {
       }
     });
 
-    // API endpoint to delete a user
-    this.app.delete('/api/users/:chatId', async (req, res) => {
+    this.app.delete('/api/users/:chatId', requireAuth, async (req, res) => {
       try {
         const chatId = req.params.chatId;
         const success = await this.dbService.deleteUser(chatId);
@@ -125,7 +165,7 @@ class AdminPanel {
       }
     });
 
-    // API endpoint to update user sessions (called from bot)
+    // API endpoint to update user sessions (called from bot) - no auth required
     this.app.post('/api/update-session', async (req, res) => {
       try {
         const { chatId, sessionData } = req.body;
@@ -141,20 +181,21 @@ class AdminPanel {
       }
     });
 
-    // Serve the admin panel HTML
-    this.app.get('/', (req, res) => {
-      res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-    });
-
     // Health check
     this.app.get('/health', (req, res) => {
-      res.json({ status: 'Admin panel is running', timestamp: new Date().toISOString() });
+      res.json({ 
+        status: 'Admin panel is running', 
+        timestamp: new Date().toISOString(),
+        authenticated: req.session && req.session.isAuthenticated
+      });
     });
   }
 
   start() {
     this.app.listen(this.port, () => {
       console.log(`🚀 Admin Panel running on http://localhost:${this.port}`);
+      console.log(`🔐 Login required at http://localhost:${this.port}/login`);
+      console.log(`📊 Admin panel at http://localhost:${this.port}/admin`);
     });
   }
 }
