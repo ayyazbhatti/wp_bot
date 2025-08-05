@@ -3,27 +3,13 @@ const qrcode = require('qrcode-terminal');
 const ApiService = require('./api');
 const config = require('./config');
 const AdminPanel = require('./admin-panel');
-// Try to use PostgreSQL, fallback to memory storage
-let DatabaseService;
-try {
-  DatabaseService = require('./database/service');
-} catch (error) {
-  console.log('⚠️  Bot: PostgreSQL not available, using memory storage');
-  DatabaseService = require('./database/memory-service');
-}
+const DatabaseService = require('./database/service');
 
 // Initialize admin panel
 const adminPanel = new AdminPanel();
 
-// Initialize database service with fallback
-let dbService;
-try {
-  dbService = new (require('./database/service'))();
-} catch (error) {
-  console.log('⚠️  Bot: Using memory database service');
-  const MemoryDatabaseService = require('./database/memory-service');
-  dbService = new MemoryDatabaseService();
-}
+// Initialize database service
+const dbService = new DatabaseService();
 
 // Conversation states
 const STATES = {
