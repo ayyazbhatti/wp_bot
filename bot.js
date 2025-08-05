@@ -82,7 +82,19 @@ class WhatsAppBot {
       }
       
       user = await dbService.createUserSession(chatId, whatsappName);
+      if (!user) {
+        console.error(`[BOT] Failed to create user session for ${chatId}`);
+        await message.reply('Mi dispiace, si è verificato un errore tecnico. Riprova più tardi.');
+        return;
+      }
       console.log(`[BOT] Created new database session for ${chatId}`);
+    }
+    
+    // Check if user object is valid
+    if (!user) {
+      console.error(`[BOT] User object is null for ${chatId}`);
+      await message.reply('Mi dispiace, si è verificato un errore tecnico. Riprova più tardi.');
+      return;
     }
     
     console.log(`[BOT] Current user state: ${user.currentState}`);

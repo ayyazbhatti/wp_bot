@@ -32,7 +32,19 @@ class DatabaseService {
 
   async createUserSession(chatId, whatsappName = null) {
     try {
-      const user = await User.create({
+      // First check if user already exists
+      let user = await User.findOne({ where: { chatId } });
+      if (user) {
+        console.log(`[DB] User session already exists for ${chatId}, updating activity`);
+        await user.update({ 
+          lastActivity: new Date(),
+          whatsappName: whatsappName || user.whatsappName
+        });
+        return user;
+      }
+
+      // Create new user if doesn't exist
+      user = await User.create({
         chatId,
         whatsappName,
         currentState: 'welcome',
