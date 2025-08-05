@@ -2,7 +2,14 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
-const DatabaseService = require('./database/service');
+// Try to use PostgreSQL, fallback to memory storage
+let DatabaseService;
+try {
+  DatabaseService = require('./database/service');
+} catch (error) {
+  console.log('⚠️  Admin Panel: Using memory database service');
+  DatabaseService = require('./database/memory-service');
+}
 const { 
     requireAuth, 
     handleLogin, 
@@ -25,10 +32,21 @@ class AdminPanel {
       try {
         this.dbService = new DatabaseService();
         await this.dbService.initialize();
-        console.log('✅ Database service initialized successfully');
+        console.log('✅ Admin Panel: Database service initialized successfully');
       } catch (error) {
-        console.error('❌ Database initialization failed:', error.message);
-        return false;
+        console.error('❌ Admin Panel: Database initialization failed:', error.message);
+        console.log('⚠️  Admin Panel: Using fallback memory storage');
+        
+        // Fallback to memory storage
+        try {
+          const MemoryDatabaseService = require('./database/memory-service');
+          this.dbService = new MemoryDatabaseService();
+          await this.dbService.initialize();
+          console.log('✅ Admin Panel: Memory database initialized');
+        } catch (memoryError) {
+          console.error('❌ Admin Panel: Memory database failed:', memoryError.message);
+          return false;
+        }
       }
     }
     return true;
