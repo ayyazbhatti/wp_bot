@@ -10,7 +10,6 @@ const User = sequelize.define('User', {
   chatId: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
     comment: 'WhatsApp chat ID'
   },
   whatsappName: {
