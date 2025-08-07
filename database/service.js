@@ -11,8 +11,8 @@ class DatabaseService {
       await this.sequelize.authenticate();
       console.log('✅ Database connection established successfully.');
       
-      // Sync models with database - force recreation to avoid conflicts
-      await this.sequelize.sync({ force: true });
+      // Sync models with database - alter to preserve existing data
+      await this.sequelize.sync({ alter: true });
       console.log('✅ Database models synchronized.');
     } catch (error) {
       console.error('❌ Database connection failed:', error);
